@@ -2,6 +2,7 @@ import argparse
 import csv
 from bs4 import BeautifulSoup
 import os
+import pandas as pd
 
 project_info = ["[SSOSM] Spam Filter\n",
         "Andrei Cristian\n",
@@ -22,15 +23,25 @@ def is_html(content: str) -> bool:
     html=False
     try:
         html=bool(BeautifulSoup(content, "html.parser").find())
-    except Exceptions as e:
+    except Exception as e:
         print(e)
-        exit(1)
+        return False
     return html
 
 def extract_from_html(content: str) -> str:
     try:
-        soup = BeautifulSoup(content)
+        soup = BeautifulSoup(content, features='lxml')
         return ''.join(soup.findAll(text=True))
+    except Exception as e:
+        print(e)
+        exit(1)
+
+def read_file(path: str) -> str:
+    try:
+        file_content = open(path, 'r', encoding='utf-8', errors='ignore').read()
+        if is_html(file_content):
+            file_content = extract_from_html(file_content)
+        return file_content
     except Exception as e:
         print(e)
         exit(1)
@@ -59,30 +70,20 @@ def write_to_csv(path: str, spam: bool, content: str) -> bool:
 def train(path: str, create_dataset = False):
     if create_dataset:
         create_csv('dataset.csv')
-        files1_clean = os.listdir('{}/Lot1/Clean' % (path))
-        files1_spam = os.listdir('{}/Lot1/Spam' % (path))
-        files2_clean = os.listdir('{}/Lot2/Clean' % (path))
-        files2_spam = os.listdir('{}/Lot2/Spam' % (path))
-        try:
-            for file in files1_clean:
-                if os.path.isfile(file):
-                    with open(os.path.join('{}/Lot1/Clean' % (path), file), 'r') as f:
-                            write_to_csv('dataset.csv', '0', ''.join(f.readlines()))
-            for file in files1_spam:
-                if os.path.isfile(file):
-                    with open(os.path.join('{}/Lot1/Spam' % (path), file), 'r') as f:
-                            write_to_csv('dataset.csv', '1', ''.join(f.readlines()))
-            for file in files2_clean:
-                if os.path.isfile(file):
-                    with open(os.path.join('{}/Lot2/Clean' % (path), file), 'r') as f:
-                            write_to_csv('dataset.csv', '0', ''.join(f.readlines()))
-            for file in files2_spam:
-                if os.path.isfile(file):
-                    with open(os.path.join('{}/Lot2/Spam' % (path), file), 'r') as f:
-                            write_to_csv('dataset.csv', '1', ''.join(f.readlines()))
-        except Exception as e:
-            print(e)
-            exit(1)
+        lots = ['Lot1', 'Lot2']
+        category = ['Clean','Spam']
+        for lot in lots:
+            for classification in category:
+                directory = os.path.join(path, lot, classification)
+                files = os.listdir(directory)
+                for file in files:
+                    file_path = os.path.join(directory, file)
+                    if os.path.isfile(file_path):
+                        file_content = read_file(file_path)
+                        if not write_to_csv('dataset.csv', classification=='Spam', file_content):
+                            print(file_content)
+    df = pd.read_csv('dataset.csv')
+    print(df.size)
 
 
 if __name__ == '__main__':
@@ -96,4 +97,4 @@ if __name__ == '__main__':
     if args.info:
         print_info(args.info[0])
     if args.train:
-        train(args.train[0], True)
+        train(args.train[0])
